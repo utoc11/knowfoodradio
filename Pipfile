@@ -1,0 +1,22 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+requests = "*"
+
+[dev-packages]
+black = "*"
+flake8 = "*"
+mypy = "*"
+
+[requires]
+python_version = "3.9"
+
+[scripts]
+fetch = "python fetch_transcript.py"
+fetch-all = "python fetch_transcript.py --all"
+format = "black ."
+lint = "flake8 ."
+typecheck = "mypy ."
