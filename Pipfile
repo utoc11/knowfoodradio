@@ -5,6 +5,7 @@ name = "pypi"
 
 [packages]
 requests = "*"
+anthropic = "*"
 
 [dev-packages]
 black = "*"
@@ -17,6 +18,8 @@ python_version = "3.9"
 [scripts]
 fetch = "python fetch_transcript.py"
 fetch-all = "python fetch_transcript.py --all"
+generate = "python generate_derivatives.py"
+generate-missing = "python generate_derivatives.py --missing"
 format = "black ."
 lint = "flake8 ."
 typecheck = "mypy ."
