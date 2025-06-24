@@ -6,7 +6,6 @@
 ## 📋 関連ドキュメント
 - [EPISODE_MASTER_LIST.md](./EPISODE_MASTER_LIST.md) - 全エピソード一覧と優先順位
 - [EPISODE_TEMPLATE.md](./EPISODE_TEMPLATE.md) - 1エピソードの作成チェックリスト
-- [TASK_MANAGEMENT.md](./TASK_MANAGEMENT.md) - 作業進捗管理
 
 ## 必須ファイル一覧（全11ファイル）
 
