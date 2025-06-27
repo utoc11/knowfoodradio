@@ -91,6 +91,44 @@ pipenv run fetch
 - [CONTENT_GUIDELINES.md](CONTENT_GUIDELINES.md) - 派生テキストの品質基準
 - [BEST_PRACTICES.md](BEST_PRACTICES.md) - トラブルシューティングとコツ
 
+## NotebookLM連携
+
+NotebookLM（Google製のAI対話ツール）と連携して、番組内容の深い分析や新しい視点での洞察を得ることができます。
+
+### NotebookLM用ファイルの生成
+
+```bash
+# デフォルト設定（10エピソードごとにグループ化）
+python create_notebooklm_files.py
+
+# カスタム設定例
+python create_notebooklm_files.py --group-size 20  # 20エピソードごと
+```
+
+### 生成されるファイル
+
+`notebooklm/`ディレクトリに以下のファイルが生成されます：
+
+- `00_KNOWフードラジオとは.md` - 番組概要
+- `00_INDEX.md` - 全エピソードのインデックス
+- `01_episodes_001-010.md` - エピソード1-10の統合ファイル
+- `02_episodes_011-020.md` - エピソード11-20の統合ファイル
+- ... （以降、指定したグループサイズごとに分割）
+
+### NotebookLMへのアップロード方法
+
+1. `python create_notebooklm_files.py`を実行
+2. Finderで`notebooklm/`フォルダを開く
+3. すべてのファイルを選択（Cmd+A）
+4. NotebookLMにドラッグ&ドロップ
+
+### 活用例
+
+- エピソード間の関連性を発見
+- 番組全体のテーマ分析
+- ゲストごとの洞察の比較
+- 時系列での話題の変遷分析
+
 ## 開発
 
 ```bash
