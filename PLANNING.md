@@ -13,8 +13,8 @@ knowfoodradio/
 │
 ├── manual/                      # 手動管理エピソード（配信前・配信日未定）
 │   ├── EP023_draft/            # 仮番号_識別子
-│   │   ├── transcript.txt      # 文字起こし（手動配置）※ない場合もあり
-│   │   ├── timeline-review.md  # 時系列詳細レビュー（transcriptの代替）
+│   │   ├── transcript.txt/.srt # 文字起こし（手動配置）※ない場合もあり
+│   │   ├── timeline-review.md  # 時系列詳細レビュー（transcriptの代替またはsrtベース）
 │   │   ├── metadata.json       # 暫定情報
 │   │   ├── preview.md          # 配信予告文
 │   │   ├── teaser.md           # ティーザー（興味喚起用）
@@ -72,7 +72,8 @@ knowfoodradio/
    - `social/x.txt`: X投稿用（140文字以内）
 
 ### manual/配信前エピソード専用ファイル:
-   - `timeline-review.md`: 時系列詳細レビュー（transcriptの代替）
+   - `transcript.txt`または`.srt`: 文字起こし（手動配置、ある場合）
+   - `timeline-review.md`: 時系列詳細レビュー（transcriptの代替、またはsrtを基に作成）
    - `preview.md`: 配信予告文（300-500文字）
    - `teaser.md`: ティーザー（100-200文字、興味喚起用）
    - `social/instagram_preview.txt`: Instagram予告投稿
@@ -216,7 +217,8 @@ python fetch_transcript.py --episode 23
 ## エピソード管理の流れ
 
 1. **配信前**: manual/配下で管理
-   - timeline-review.mdから予告文・ティーザーを生成
+   - 文字起こし（.srtまたは.txt）がある場合はそれを基に作成
+   - timeline-review.mdから（または文字起こしから）予告文・ティーザーを生成
    - SNSで事前告知を展開
    - リスナーの期待を醸成
    
