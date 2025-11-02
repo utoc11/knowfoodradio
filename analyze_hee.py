@@ -159,8 +159,14 @@ class HeeAnalyzer:
             'instances': hee_instances
         }
 
-    def analyze_all_episodes(self, from_rss_dir: Path) -> List[Dict]:
-        """from-rss配下の全エピソードを解析"""
+    def analyze_all_episodes(self, from_rss_dir: Path, sort_by: str = 'count-desc') -> List[Dict]:
+        """
+        from-rss配下の全エピソードを解析
+
+        Args:
+            from_rss_dir: from-rssディレクトリのパス
+            sort_by: ソート順 ('count-desc', 'count-asc', 'name')
+        """
         results = []
 
         # ディレクトリを名前順にソート
@@ -170,6 +176,17 @@ class HeeAnalyzer:
             result = self.analyze_episode(episode_dir)
             if result:
                 results.append(result)
+
+        # ソート処理
+        if sort_by == 'count-desc':
+            # へぇ回数の多い順（デフォルト）
+            results.sort(key=lambda x: x['count'], reverse=True)
+        elif sort_by == 'count-asc':
+            # へぇ回数の少ない順
+            results.sort(key=lambda x: x['count'])
+        elif sort_by == 'name':
+            # エピソード名順（元の順序）
+            results.sort(key=lambda x: x['episode_name'])
 
         return results
 
@@ -298,6 +315,13 @@ def main():
         default=2,
         help='前後に含めるブロック数（デフォルト: 2）。0にすると前後なし'
     )
+    parser.add_argument(
+        '--sort',
+        type=str,
+        default='count-desc',
+        choices=['count-desc', 'count-asc', 'name'],
+        help='並び順（デフォルト: count-desc）。count-desc=へぇ回数の多い順、count-asc=へぇ回数の少ない順、name=エピソード名順'
+    )
 
     args = parser.parse_args()
 
@@ -315,7 +339,7 @@ def main():
     if args.all:
         # 全エピソード解析
         print("全エピソードを解析中...")
-        results = analyzer.analyze_all_episodes(from_rss_dir)
+        results = analyzer.analyze_all_episodes(from_rss_dir, sort_by=args.sort)
     elif args.episode:
         # 特定エピソード解析
         episode_dir = from_rss_dir / args.episode
