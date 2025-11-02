@@ -195,6 +195,14 @@ python analyze_hee.py --all --json hee_analysis_result.json --incremental
 #   - 新規解析: 3件
 #   - スキップ: 146件
 #   - 合計: 149件
+
+# === 連番付きエピソードのみを対象 ===
+
+# #数字で始まるエピソード（#1、#36など）のみを解析
+python analyze_hee.py --all --numbered-only --json hee_analysis_numbered.json
+
+# 連番付きのみ + へぇ回数の多い順
+python analyze_hee.py --all --numbered-only --sort count-desc --json hee_analysis_numbered.json
 ```
 
 **💡 重要**:
@@ -204,6 +212,9 @@ python analyze_hee.py --all --json hee_analysis_result.json --incremental
   - 毎週更新されるポッドキャストに最適
   - 処理時間を大幅に短縮
   - `--json`オプションと併用必須
+- **連番フィルター（`--numbered-only`）を使うと、#数字で始まるエピソードのみを対象にできます**
+  - お便り回やゲスト回など、連番外のエピソードを除外したい場合に便利
+  - 例: `#1`、`#36`は対象、`#36.1-お便り回`は対象外
 
 ### 解析結果の例
 

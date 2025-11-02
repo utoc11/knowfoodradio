@@ -164,7 +164,8 @@ class HeeAnalyzer:
         self,
         from_rss_dir: Path,
         sort_by: str = 'count-desc',
-        existing_results: Optional[Dict[str, Dict]] = None
+        existing_results: Optional[Dict[str, Dict]] = None,
+        numbered_only: bool = False
     ) -> Tuple[List[Dict], int, int]:
         """
         from-rss配下の全エピソードを解析
@@ -173,6 +174,7 @@ class HeeAnalyzer:
             from_rss_dir: from-rssディレクトリのパス
             sort_by: ソート順 ('count-desc', 'count-asc', 'name')
             existing_results: 既存の解析結果（差分実行時）
+            numbered_only: Trueの場合、#数字で始まるエピソードのみを対象とする
 
         Returns:
             (結果リスト, 新規解析数, スキップ数)
@@ -182,7 +184,14 @@ class HeeAnalyzer:
         skip_count = 0
 
         # ディレクトリを名前順にソート
-        episode_dirs = sorted([d for d in from_rss_dir.iterdir() if d.is_dir()])
+        all_dirs = sorted([d for d in from_rss_dir.iterdir() if d.is_dir()])
+
+        # numbered_onlyフィルタを適用
+        if numbered_only:
+            # #数字で始まるディレクトリのみを抽出（例: #36、#1など）
+            episode_dirs = [d for d in all_dirs if re.match(r'^#\d+', d.name)]
+        else:
+            episode_dirs = all_dirs
 
         for episode_dir in episode_dirs:
             episode_name = episode_dir.name
@@ -363,6 +372,11 @@ def main():
         action='store_true',
         help='差分実行モード。既存のJSON結果ファイルがあれば、処理済みエピソードをスキップして新しいエピソードのみを解析'
     )
+    parser.add_argument(
+        '--numbered-only',
+        action='store_true',
+        help='連番付きエピソードのみを対象とする（#数字で始まるディレクトリ名のみ）'
+    )
 
     args = parser.parse_args()
 
@@ -392,11 +406,15 @@ def main():
     # 実行モードの判定
     if args.all:
         # 全エピソード解析
-        print("全エピソードを解析中...")
+        if args.numbered_only:
+            print("連番付きエピソードのみを解析中...")
+        else:
+            print("全エピソードを解析中...")
         results, new_count, skip_count = analyzer.analyze_all_episodes(
             from_rss_dir,
             sort_by=args.sort,
-            existing_results=existing_results
+            existing_results=existing_results,
+            numbered_only=args.numbered_only
         )
 
         # 差分実行の結果を表示
