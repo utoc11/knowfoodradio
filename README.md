@@ -143,7 +143,7 @@ python create_notebooklm_files.py --group-size 20  # 20エピソードごと
 - スペースと改行の混在（`へ \n え`）に対応
 
 ```bash
-# 全エピソードを解析
+# 全エピソードを解析（デフォルトで前後2ブロックのコンテキスト付き）
 python analyze_hee.py --all
 
 # 詳細情報（タイムスタンプと文脈）を表示
@@ -155,8 +155,7 @@ python analyze_hee.py "#32.機能性表示食品は誰のため？開発者目�
 # JSON形式で結果を保存
 python analyze_hee.py --all --json hee_analysis_result.json
 
-# 前後のコンテキストを追加（デフォルト: 前後2ブロック）
-python analyze_hee.py --all --details --context 2
+# === コンテキスト（前後の文脈）のカスタマイズ ===
 
 # コンテキストなし（「へぇ」の箇所のみ）
 python analyze_hee.py --all --details --context 0
@@ -164,6 +163,8 @@ python analyze_hee.py --all --details --context 0
 # 前後を広く取る（前後5ブロック）
 python analyze_hee.py "#32.機能性表示食品は誰のため？開発者目線で見るトクホとの違い" --details --context 5
 ```
+
+**💡 重要**: デフォルトで前後2ブロック（約10-15秒の会話）のコンテキストが自動的に含まれます。`--context`オプションを指定しなくても、文脈が分かりやすい出力になります。
 
 ### 解析結果の例
 
