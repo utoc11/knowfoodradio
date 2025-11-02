@@ -7,9 +7,10 @@
 import os
 import re
 from pathlib import Path
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 import argparse
 import json
+from datetime import datetime
 
 
 class HeeAnalyzer:
@@ -159,23 +160,44 @@ class HeeAnalyzer:
             'instances': hee_instances
         }
 
-    def analyze_all_episodes(self, from_rss_dir: Path, sort_by: str = 'count-desc') -> List[Dict]:
+    def analyze_all_episodes(
+        self,
+        from_rss_dir: Path,
+        sort_by: str = 'count-desc',
+        existing_results: Optional[Dict[str, Dict]] = None
+    ) -> Tuple[List[Dict], int, int]:
         """
         from-rss配下の全エピソードを解析
 
         Args:
             from_rss_dir: from-rssディレクトリのパス
             sort_by: ソート順 ('count-desc', 'count-asc', 'name')
+            existing_results: 既存の解析結果（差分実行時）
+
+        Returns:
+            (結果リスト, 新規解析数, スキップ数)
         """
         results = []
+        new_count = 0
+        skip_count = 0
 
         # ディレクトリを名前順にソート
         episode_dirs = sorted([d for d in from_rss_dir.iterdir() if d.is_dir()])
 
         for episode_dir in episode_dirs:
+            episode_name = episode_dir.name
+
+            # 差分実行モード: 既存結果があればスキップ
+            if existing_results and episode_name in existing_results:
+                results.append(existing_results[episode_name])
+                skip_count += 1
+                continue
+
+            # 新規解析
             result = self.analyze_episode(episode_dir)
             if result:
                 results.append(result)
+                new_count += 1
 
         # ソート処理
         if sort_by == 'count-desc':
@@ -188,7 +210,7 @@ class HeeAnalyzer:
             # エピソード名順（元の順序）
             results.sort(key=lambda x: x['episode_name'])
 
-        return results
+        return results, new_count, skip_count
 
     def print_summary(self, results: List[Dict], show_details: bool = False):
         """結果サマリを出力"""
@@ -227,6 +249,20 @@ class HeeAnalyzer:
 
         print()
         print("=" * 80)
+
+    def load_existing_results(self, json_path: Path) -> Dict[str, Dict]:
+        """既存のJSON結果を読み込んで辞書形式で返す"""
+        if not json_path.exists():
+            return {}
+
+        try:
+            with open(json_path, 'r', encoding='utf-8') as f:
+                results = json.load(f)
+            # エピソード名をキーとした辞書に変換
+            return {r['episode_name']: r for r in results}
+        except Exception as e:
+            print(f"警告: 既存結果の読み込みに失敗しました: {e}")
+            return {}
 
     def export_to_json(self, results: List[Dict], output_path: Path):
         """結果をJSON形式でエクスポート"""
@@ -322,6 +358,11 @@ def main():
         choices=['count-desc', 'count-asc', 'name'],
         help='並び順（デフォルト: count-desc）。count-desc=へぇ回数の多い順、count-asc=へぇ回数の少ない順、name=エピソード名順'
     )
+    parser.add_argument(
+        '--incremental',
+        action='store_true',
+        help='差分実行モード。既存のJSON結果ファイルがあれば、処理済みエピソードをスキップして新しいエピソードのみを解析'
+    )
 
     args = parser.parse_args()
 
@@ -335,11 +376,35 @@ def main():
 
     analyzer = HeeAnalyzer(context_blocks=args.context)
 
+    # 差分実行モードの準備
+    existing_results = None
+    if args.incremental and args.json:
+        json_path = Path(args.json)
+        if json_path.exists():
+            print(f"差分実行モード: 既存結果を読み込んでいます ({json_path})...")
+            existing_results = analyzer.load_existing_results(json_path)
+            print(f"  → {len(existing_results)}件の処理済みエピソードを検出")
+        else:
+            print(f"差分実行モード: 既存結果が見つかりませんでした。全エピソードを解析します。")
+    elif args.incremental and not args.json:
+        print("警告: --incrementalオプションには--jsonオプションが必要です。通常モードで実行します。")
+
     # 実行モードの判定
     if args.all:
         # 全エピソード解析
         print("全エピソードを解析中...")
-        results = analyzer.analyze_all_episodes(from_rss_dir, sort_by=args.sort)
+        results, new_count, skip_count = analyzer.analyze_all_episodes(
+            from_rss_dir,
+            sort_by=args.sort,
+            existing_results=existing_results
+        )
+
+        # 差分実行の結果を表示
+        if args.incremental and existing_results:
+            print(f"\n差分実行完了:")
+            print(f"  - 新規解析: {new_count}件")
+            print(f"  - スキップ: {skip_count}件")
+            print(f"  - 合計: {len(results)}件")
     elif args.episode:
         # 特定エピソード解析
         episode_dir = from_rss_dir / args.episode
@@ -354,6 +419,8 @@ def main():
 
         result = analyzer.analyze_episode(episode_dir)
         results = [result] if result else []
+        # 特定エピソードモードではカウント情報を返さない（互換性のため）
+        new_count, skip_count = 0, 0
     else:
         # 引数なしの場合はヘルプを表示
         parser.print_help()
