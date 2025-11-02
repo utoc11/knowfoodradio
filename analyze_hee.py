@@ -217,6 +217,51 @@ class HeeAnalyzer:
             json.dump(results, f, ensure_ascii=False, indent=2)
         print(f"結果をJSONファイルに出力しました: {output_path}")
 
+    def export_to_markdown(self, results: List[Dict], output_path: Path):
+        """結果をMarkdown形式でエクスポート"""
+        with open(output_path, 'w', encoding='utf-8') as f:
+            # ヘッダー
+            f.write("# 「へぇ」リアクション解析結果\n\n")
+
+            # サマリ
+            total_count = sum(r['count'] for r in results)
+            episodes_with_hee = sum(1 for r in results if r['count'] > 0)
+
+            f.write("## 📊 サマリ\n\n")
+            f.write(f"- **解析エピソード数**: {len(results)}\n")
+            f.write(f"- **「へぇ」を含むエピソード数**: {episodes_with_hee}\n")
+            f.write(f"- **「へぇ」総出現回数**: {total_count}\n\n")
+
+            # エピソードごとの詳細
+            f.write("## 📝 エピソードごとの詳細\n\n")
+
+            for result in results:
+                if result['count'] == 0:
+                    continue
+
+                f.write(f"### {result['episode_name']}\n\n")
+                f.write(f"**出現回数**: {result['count']}回\n\n")
+
+                for i, instance in enumerate(result['instances'], 1):
+                    time_range = instance['timestamp'].split(' --> ')
+                    start_time = time_range[0] if len(time_range) > 0 else ''
+
+                    f.write(f"#### {i}. タイムスタンプ: `{start_time}`\n\n")
+
+                    # コンテキストがあればそれを表示、なければcleaned_text
+                    if instance.get('context'):
+                        f.write(f"> {instance['context']}\n\n")
+                    else:
+                        f.write(f"> {instance['cleaned_text']}\n\n")
+
+                f.write("---\n\n")
+
+            # フッター
+            f.write("## 📌 注意\n\n")
+            f.write("このファイルは `analyze_hee.py` によって自動生成されました。\n")
+
+        print(f"結果をMarkdownファイルに出力しました: {output_path}")
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -241,6 +286,11 @@ def main():
         '--json',
         type=str,
         help='結果をJSON形式で出力（ファイルパスを指定）'
+    )
+    parser.add_argument(
+        '--markdown',
+        type=str,
+        help='結果をMarkdown形式で出力（ファイルパスを指定）'
     )
     parser.add_argument(
         '--context',
@@ -304,6 +354,15 @@ def main():
     if args.json:
         output_path = Path(args.json)
         analyzer.export_to_json(results, output_path)
+
+        # JSON出力時に自動的にMarkdownも生成（同じファイル名で拡張子を.mdに変更）
+        md_path = output_path.with_suffix('.md')
+        analyzer.export_to_markdown(results, md_path)
+
+    # Markdown出力（単独指定の場合）
+    if args.markdown:
+        output_path = Path(args.markdown)
+        analyzer.export_to_markdown(results, output_path)
 
 
 if __name__ == '__main__':
