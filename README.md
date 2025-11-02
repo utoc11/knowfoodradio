@@ -154,6 +154,15 @@ python analyze_hee.py "#32.機能性表示食品は誰のため？開発者目�
 
 # JSON形式で結果を保存
 python analyze_hee.py --all --json hee_analysis_result.json
+
+# 前後のコンテキストを追加（デフォルト: 前後2ブロック）
+python analyze_hee.py --all --details --context 2
+
+# コンテキストなし（「へぇ」の箇所のみ）
+python analyze_hee.py --all --details --context 0
+
+# 前後を広く取る（前後5ブロック）
+python analyze_hee.py "#32.機能性表示食品は誰のため？開発者目線で見るトクホとの違い" --details --context 5
 ```
 
 ### 解析結果の例
@@ -191,7 +200,8 @@ python analyze_hee.py --all --json hee_analysis_result.json
       {
         "timestamp": "00:01:58,960 --> 00:02:00,960",
         "text": "へ え、 効 果。 感 じ て る ん だ。",
-        "cleaned_text": "へえ、効果。感じてるんだ。"
+        "cleaned_text": "へえ、効果。感じてるんだ。",
+        "context": "みたい。な、本当に手ずっと動かしてる時とか食べてんだけど、まあなんか確かに圧迫感が減る気がする。へえ、効果。感じてるんだ。そうそう。実績わかんないよね。これはあれかもしれないけどね。プラシーボ効果かもしれないけどね。"
       }
     ]
   },
@@ -202,7 +212,8 @@ python analyze_hee.py --all --json hee_analysis_result.json
       {
         "timestamp": "00:10:19,400 --> 00:10:23,920",
         "text": "と か 甘 く て 飲 め な く な っ た り も す る し、 へ え っ て い う そ の 嗜 好 性 の 部 分 も",
-        "cleaned_text": "とか甘くて飲めなくなったりもするし、へえっていうその嗜好性の部分も"
+        "cleaned_text": "とか甘くて飲めなくなったりもするし、へえっていうその嗜好性の部分も",
+        "context": "前後のテキストを含む長い文章..."
       }
       // ... 残りの3件
     ]
@@ -218,6 +229,7 @@ python analyze_hee.py --all --json hee_analysis_result.json
   - `timestamp`: SRTファイルのタイムスタンプ（開始 --> 終了）
   - `text`: 元のテキスト（スペース入り）
   - `cleaned_text`: スペースを除去したテキスト（読みやすい形式）
+  - `context`: 前後のコンテキストを含むテキスト（`--context`オプション使用時のみ、デフォルトは前後2ブロック）
 
 ### 活用方法
 

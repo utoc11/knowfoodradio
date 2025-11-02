@@ -15,7 +15,11 @@ import json
 class HeeAnalyzer:
     """「へぇ」リアクションを解析するクラス"""
 
-    def __init__(self):
+    def __init__(self, context_blocks: int = 0):
+        """
+        Args:
+            context_blocks: 前後に含めるブロック数（0=前後なし、2=前後2ブロックずつ）
+        """
         # スペース・改行・全角スペースを含む可能性を考慮した「へぇ」パターン
         # 例: "へ え"、"へ\nえ"、"へ　ー"、"へええ" など
         #
@@ -35,6 +39,7 @@ class HeeAnalyzer:
             r'ヘ[\s\u3000\n]*[ェエー][\s\u3000\n]*[ェエー]?[\s\u3000\n]*[ェエー]?',
         ]
         self.compiled_patterns = [re.compile(p, re.IGNORECASE) for p in self.hee_patterns]
+        self.context_blocks = context_blocks
 
     def extract_text_from_srt(self, srt_path: Path) -> str:
         """SRTファイルからテキスト部分のみを抽出"""
@@ -68,8 +73,13 @@ class HeeAnalyzer:
 
         return ' '.join(text_parts)
 
-    def find_hee_with_context(self, srt_path: Path) -> List[Dict[str, str]]:
-        """「へぇ」が含まれる箇所をタイムスタンプとともに抽出"""
+    def find_hee_with_context(self, srt_path: Path, context_blocks: int = 0) -> List[Dict[str, str]]:
+        """「へぇ」が含まれる箇所をタイムスタンプとともに抽出
+
+        Args:
+            srt_path: SRTファイルのパス
+            context_blocks: 前後に含めるブロック数（0=前後なし、1=前後1ブロックずつ、2=前後2ブロックずつ）
+        """
         results = []
 
         with open(srt_path, 'r', encoding='utf-8') as f:
@@ -78,6 +88,8 @@ class HeeAnalyzer:
         # SRTのブロックごとに分割（空行で区切られる）
         blocks = content.strip().split('\n\n')
 
+        # 各ブロックをパース
+        parsed_blocks = []
         for block in blocks:
             lines = block.strip().split('\n')
             if len(lines) < 3:
@@ -93,21 +105,42 @@ class HeeAnalyzer:
                 elif not line.isdigit():  # 番号行でない
                     text_lines.append(line.strip())
 
-            if not timestamp:
-                continue
+            if timestamp:
+                parsed_blocks.append({
+                    'timestamp': timestamp,
+                    'text': ' '.join(text_lines)
+                })
 
-            # テキストを結合（スペースを保持）
-            full_text = ' '.join(text_lines)
+        # 「へぇ」を含むブロックを検索
+        for i, block_data in enumerate(parsed_blocks):
+            full_text = block_data['text']
 
             # 「へぇ」パターンをチェック
+            matched = False
             for pattern in self.compiled_patterns:
                 if pattern.search(full_text):
-                    results.append({
-                        'timestamp': timestamp,
-                        'text': full_text,
-                        'cleaned_text': full_text.replace(' ', '').replace('　', '')  # スペースを除去した版
-                    })
-                    break  # 同じブロックで複数回カウントしない
+                    matched = True
+                    break
+
+            if not matched:
+                continue
+
+            # 前後のコンテキストを追加
+            start_idx = max(0, i - context_blocks)
+            end_idx = min(len(parsed_blocks), i + context_blocks + 1)
+
+            context_texts = []
+            for j in range(start_idx, end_idx):
+                context_texts.append(parsed_blocks[j]['text'])
+
+            context_text = ' '.join(context_texts)
+
+            results.append({
+                'timestamp': block_data['timestamp'],
+                'text': full_text,
+                'cleaned_text': full_text.replace(' ', '').replace('　', ''),
+                'context': context_text.replace(' ', '').replace('　', '') if context_blocks > 0 else None
+            })
 
         return results
 
@@ -118,7 +151,7 @@ class HeeAnalyzer:
         if not srt_path.exists():
             return None
 
-        hee_instances = self.find_hee_with_context(srt_path)
+        hee_instances = self.find_hee_with_context(srt_path, self.context_blocks)
 
         return {
             'episode_name': episode_dir.name,
@@ -169,7 +202,10 @@ class HeeAnalyzer:
                         # タイムスタンプを見やすく整形
                         time_range = instance['timestamp'].split(' --> ')
                         start_time = time_range[0] if len(time_range) > 0 else ''
-                        print(f"  └ {start_time}: {instance['cleaned_text'][:50]}...")
+
+                        # コンテキストがあればそれを表示、なければcleaned_text
+                        display_text = instance.get('context') or instance['cleaned_text']
+                        print(f"  └ {start_time}: {display_text[:100]}...")
                     print()
 
         print()
@@ -206,6 +242,12 @@ def main():
         type=str,
         help='結果をJSON形式で出力（ファイルパスを指定）'
     )
+    parser.add_argument(
+        '--context',
+        type=int,
+        default=2,
+        help='前後に含めるブロック数（デフォルト: 2）。0にすると前後なし'
+    )
 
     args = parser.parse_args()
 
@@ -217,7 +259,7 @@ def main():
         print(f"エラー: from-rssディレクトリが見つかりません: {from_rss_dir}")
         return
 
-    analyzer = HeeAnalyzer()
+    analyzer = HeeAnalyzer(context_blocks=args.context)
 
     # 実行モードの判定
     if args.all:
