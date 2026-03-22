@@ -2,8 +2,12 @@
 """
 KNOWフードラジオ - 文字起こし取得スクリプト
 
-RSSフィードから文字起こしデータ（.srtファイル）を取得し、
-適切なディレクトリ構造で保存します。
+RSSフィードから文字起こしデータを取得し、適切なディレクトリ構造で保存します。
+
+プライマリRSS（Spotify/Anchor）にtranscriptタグがない場合、
+Listen RSS（rss.listen.style）をフォールバックとして使用します。
+- プライマリRSS: SRT形式 → transcript.srt
+- Listen RSS（フォールバック）: VTT形式（話者ラベル付き） → transcript.vtt
 
 【使用例】
 # 最新エピソードを取得（デフォルト）
@@ -45,7 +49,10 @@ import xml.etree.ElementTree as ET
 import requests
 
 
+# プライマリRSS（メタデータのソース）
 RSS_URL = "https://anchor.fm/s/7637c118/podcast/rss"
+# フォールバックRSS（Listen: 文字起こし付き）
+LISTEN_RSS_URL = "https://rss.listen.style/p/noshokuradio/rss"
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FROM_RSS_DIR = os.path.join(BASE_DIR, "from-rss")
 
@@ -77,44 +84,85 @@ def parse_date(date_str: str) -> Optional[date]:
             return None
 
 
-def fetch_rss_feed() -> ET.Element:
+def fetch_rss_feed(url: str = RSS_URL) -> ET.Element:
     """RSSフィードを取得してパース"""
-    print(f"RSSフィードを取得中: {RSS_URL}")
-    response = requests.get(RSS_URL)
+    print(f"RSSフィードを取得中: {url}")
+    response = requests.get(url)
     response.raise_for_status()
-    
+
     root = ET.fromstring(response.content)
     return root
 
 
-def extract_episode_info(item: ET.Element) -> Dict:
-    """RSSのitemエレメントからエピソード情報を抽出"""
+def build_listen_transcript_map(listen_root: ET.Element) -> Dict[str, str]:
+    """Listen RSSからタイトル→transcript URLのマッピングを構築"""
+    namespaces = {
+        'podcast': 'https://podcastindex.org/namespace/1.0',
+    }
+    transcript_map = {}
+
+    channel = listen_root.find('channel')
+    if channel is None:
+        return transcript_map
+
+    for item in channel.findall('item'):
+        title = item.findtext('title', '').strip()
+        transcript_elem = item.find('podcast:transcript', namespaces)
+        if transcript_elem is not None:
+            url = transcript_elem.get('url')
+            if url and title:
+                transcript_map[title] = url
+
+    print(f"Listen RSS: {len(transcript_map)}件のtranscript URLを取得")
+    return transcript_map
+
+
+def extract_episode_info(
+    item: ET.Element,
+    listen_transcript_map: Optional[Dict[str, str]] = None
+) -> Dict:
+    """RSSのitemエレメントからエピソード情報を抽出
+
+    listen_transcript_map: Listen RSSのtitle→transcript URLマッピング。
+    プライマリRSSにtranscriptがない場合のフォールバックとして使用。
+    """
     # 名前空間の定義
     namespaces = {
         'podcast': 'https://podcastindex.org/namespace/1.0',
         'itunes': 'http://www.itunes.com/dtds/podcast-1.0.dtd'
     }
-    
+
     # 基本情報の取得
     title = item.findtext('title', '')
     description = item.findtext('description', '')
     pub_date_str = item.findtext('pubDate', '')
     pub_date = parse_date(pub_date_str)
-    
+
     # エピソード番号の抽出（タイトルから）
     episode_match = re.search(r'第(\d+)回', title)
     episode_number = int(episode_match.group(1)) if episode_match else None
-    
-    # transcriptタグの取得
+
+    # transcriptタグの取得（プライマリRSS）
     transcript_elem = item.find('podcast:transcript', namespaces)
     transcript_url = None
+    transcript_source = None
     if transcript_elem is not None:
         transcript_url = transcript_elem.get('url')
-    
+        if transcript_url:
+            transcript_source = 'primary'
+
+    # フォールバック: Listen RSSからtranscript URLを取得
+    if not transcript_url and listen_transcript_map:
+        listen_url = listen_transcript_map.get(title.strip())
+        if listen_url:
+            transcript_url = listen_url
+            transcript_source = 'listen'
+            print(f"  → Listen RSSからtranscript URLを取得: {title}")
+
     # 他の有用な情報
     duration = item.findtext('itunes:duration', '', namespaces)
     author = item.findtext('itunes:author', '', namespaces)
-    
+
     return {
         'title': title,
         'description': description,
@@ -122,6 +170,7 @@ def extract_episode_info(item: ET.Element) -> Dict:
         'pub_date_str': pub_date_str,
         'episode_number': episode_number,
         'transcript_url': transcript_url,
+        'transcript_source': transcript_source,
         'duration': duration,
         'author': author
     }
@@ -210,28 +259,41 @@ def process_episode(episode_info: Dict) -> bool:
     if not episode_info['transcript_url']:
         print(f"警告: 文字起こしURLが見つかりません: {episode_info['title']}")
         return False
-    
+
     # 保存先ディレクトリの作成
     dir_name = sanitize_filename(episode_info['title'])
     save_dir = os.path.join(FROM_RSS_DIR, dir_name)
-    
-    # 既に存在する場合はスキップするか確認
+
+    # 既に存在する場合はスキップ（.srt または .vtt）
     if os.path.exists(save_dir):
-        transcript_path = os.path.join(save_dir, 'transcript.srt')
-        if os.path.exists(transcript_path):
+        srt_path = os.path.join(save_dir, 'transcript.srt')
+        vtt_path = os.path.join(save_dir, 'transcript.vtt')
+        if os.path.exists(srt_path) or os.path.exists(vtt_path):
             print(f"スキップ: 既に存在します - {dir_name}")
             return True
-    
+
     # ディレクトリ作成
     os.makedirs(save_dir, exist_ok=True)
-    
+
+    # ソースに応じた拡張子を決定
+    source = episode_info.get('transcript_source', 'primary')
+    if source == 'listen':
+        transcript_filename = 'transcript.vtt'
+    else:
+        # プライマリRSSのURLから拡張子を推定
+        url = episode_info['transcript_url']
+        if url.endswith('.vtt'):
+            transcript_filename = 'transcript.vtt'
+        else:
+            transcript_filename = 'transcript.srt'
+
     # 文字起こしをダウンロード
-    transcript_path = os.path.join(save_dir, 'transcript.srt')
+    transcript_path = os.path.join(save_dir, transcript_filename)
     if download_transcript(episode_info['transcript_url'], transcript_path):
         # メタデータを保存
         save_metadata(episode_info, save_dir)
         return True
-    
+
     return False
 
 
@@ -277,18 +339,26 @@ def main():
     os.makedirs(FROM_RSS_DIR, exist_ok=True)
     
     try:
-        # RSSフィードを取得
-        root = fetch_rss_feed()
-        
+        # プライマリRSSフィードを取得
+        root = fetch_rss_feed(RSS_URL)
+
+        # Listen RSSフィードをフォールバック用に取得
+        listen_transcript_map = {}
+        try:
+            listen_root = fetch_rss_feed(LISTEN_RSS_URL)
+            listen_transcript_map = build_listen_transcript_map(listen_root)
+        except Exception as e:
+            print(f"警告: Listen RSSの取得に失敗しました（フォールバックなしで続行）: {e}")
+
         # エピソード情報を抽出
         episodes = []
         channel = root.find('channel')
         if channel is None:
             print("エラー: RSSフィードにchannelエレメントが見つかりません")
             sys.exit(1)
-        
+
         for item in channel.findall('item'):
-            episode_info = extract_episode_info(item)
+            episode_info = extract_episode_info(item, listen_transcript_map)
             if episode_info:
                 episodes.append(episode_info)
         
